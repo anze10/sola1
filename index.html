@@ -83,22 +83,7 @@
 </head>
 
 <body>
-  <?php
-  // Initialize variables for messages
-  $connectionMessage = '';
-  $actionMessage = '';
-
-  // Database connection
-  $conn = pg_connect("host=aws-0-eu-central-1.pooler.supabase.com port=6543 dbname=postgres user=postgres.lxxgpjzntcdejaqtozbf password=SCNM!jesola");
-  if ($conn) {
-    $connectionMessage = "<div class='success'>Connected to the database successfully.</div>";
-  } else {
-    $connectionMessage = "<div class='error'>Connection failed: " . pg_last_error() . "</div>";
-  }
-
   
- 
-  ?>
 
   <div class="container">
     <!-- Connection Status -->
