@@ -1,9 +1,9 @@
 <?php
-// Povezava na PostgreSQL
-$conn = pg_connect("host=aws-0-eu-central-1.pooler.supabase.com port=6543 dbname=postgres user=postgres.lxxgpjzntcdejaqtozbf password=SCNM!jesola");
+// Povezava na MySQL
+$conn = mysqli_connect("158.180.230.254", "username", "Kaks123!@", "sola", 3306);
 
 if (!$conn) {
-    die("Napaka pri povezavi s PostgreSQL: " . pg_last_error());
+    die("Napaka pri povezavi s MySQL: " . mysqli_connect_error());
 }
 
 // Handle user registration
@@ -24,15 +24,16 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['register'])) {
     }
 
     // Prepare and execute SQL query to insert user
-    $sql = "INSERT INTO users (username, password, mail, role) VALUES ($1, $2, $3, $4)";
-    $result = pg_query_params($conn, $sql, [$username, $password, $mail, $role]);
+    $stmt = $conn->prepare("INSERT INTO users (username, password, mail, role) VALUES (?, ?, ?, ?)");
+    $stmt->bind_param("ssss", $username, $password, $mail, $role);
 
-    // Provide feedback to user
-    if ($result) {
+    if ($stmt->execute()) {
         echo "Uporabnik '$username' uspešno dodan!";
     } else {
-        echo "Napaka pri dodajanju uporabnika: " . pg_last_error($conn);
+        echo "Napaka pri dodajanju uporabnika: " . $stmt->error;
     }
+
+    $stmt->close();
 }
 
 // Handle user login and dashboard
@@ -47,12 +48,14 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['login'])) {
     }
 
     // Check if user exists and get their role
-    $sql = "SELECT role FROM users WHERE username = $1 AND password = $2";
-    $result = pg_query_params($conn, $sql, [$username, $password]);
+    $stmt = $conn->prepare("SELECT role FROM users WHERE username = ? AND password = ?");
+    $stmt->bind_param("ss", $username, $password);
+    $stmt->execute();
+    $result = $stmt->get_result();
 
-    if ($result && pg_num_rows($result) > 0) {
+    if ($result && $result->num_rows > 0) {
         // Fetch the role
-        $row = pg_fetch_assoc($result);
+        $row = $result->fetch_assoc();
         $role = $row['role'];
 
         // Display the dashboard based on role
@@ -62,9 +65,9 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['login'])) {
 
             // Fetch all users for admin
             $users_sql = "SELECT username, mail FROM users";
-            $users_result = pg_query($conn, $users_sql);
+            $users_result = $conn->query($users_sql);
 
-            while ($user = pg_fetch_assoc($users_result)) {
+            while ($user = $users_result->fetch_assoc()) {
                 echo "<p>User: " . $user['username'] . " - Email: " . $user['mail'] . "</p>";
             }
         } else {
@@ -72,17 +75,21 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['login'])) {
             echo "<h2>Your Information:</h2>";
 
             // Fetch user data for regular user
-            $user_info_sql = "SELECT username, mail FROM users WHERE username = $1";
-            $user_info_result = pg_query_params($conn, $user_info_sql, [$username]);
+            $stmt = $conn->prepare("SELECT username, mail FROM users WHERE username = ?");
+            $stmt->bind_param("s", $username);
+            $stmt->execute();
+            $user_info_result = $stmt->get_result();
 
-            $user_info = pg_fetch_assoc($user_info_result);
+            $user_info = $user_info_result->fetch_assoc();
             echo "<p>Username: " . $user_info['username'] . " - Email: " . $user_info['mail'] . "</p>";
         }
     } else {
         echo "Invalid credentials!";
     }
+
+    $stmt->close();
 }
 
 // Close the connection
-pg_close($conn);
+$conn->close();
 ?>
