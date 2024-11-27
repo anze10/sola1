@@ -28,7 +28,11 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['register'])) {
     $stmt->bind_param("ssss", $username, $password, $mail, $role);
 
     if ($stmt->execute()) {
-        echo "Uporabnik '$username' uspešno dodan!";
+        echo "<div class='success'>
+                Uporabnik '$username' uspešno dodan! 
+                <br><br>
+                <button onclick=\"window.location.href='/';\">Kliknite tukaj za vrnitev na glavno stran</button>
+              </div>";
     } else {
         echo "Napaka pri dodajanju uporabnika: " . $stmt->error;
     }
