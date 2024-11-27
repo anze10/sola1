@@ -83,7 +83,79 @@
 </head>
 
 <body>
-  
+  <?php
+  // Initialize variables for messages
+  $connectionMessage = '';
+  $actionMessage = '';
+
+  // Database connection
+  $conn = mysqli_connect("158.180.230.254", "username", "Kaks123!@", "sola", 3306);
+
+  if ($conn) {
+      $connectionMessage = "<div class='success'>Connected to the database successfully.</div>";
+  } else {
+      $connectionMessage = "<div class='error'>Connection failed: " . mysqli_connect_error() . "</div>";
+  }
+
+  // Handle form submissions
+  if ($_SERVER["REQUEST_METHOD"] === "POST") {
+    if (isset($_POST['register'])) {
+      // Registration logic
+      $username = trim($_POST['username']);
+      $password = trim($_POST['password']);
+      $mail = trim($_POST['mail']);
+      $role = isset($_POST['role']) ? trim($_POST['role']) : 'user';
+
+      if (empty($username) || empty($password) || empty($mail)) {
+        $actionMessage = "<div class='error'>All required fields must be filled!</div>";
+      } elseif (!filter_var($mail, FILTER_VALIDATE_EMAIL)) {
+        $actionMessage = "<div class='error'>Invalid email format!</div>";
+      } else {
+        // Insert user into the database
+        $hashedPassword = password_hash($password, PASSWORD_BCRYPT); // Hash the password
+        $stmt = $conn->prepare("INSERT INTO users (username, password, mail, role) VALUES (?, ?, ?, ?)");
+        $stmt->bind_param("ssss", $username, $hashedPassword, $mail, $role);
+
+        if ($stmt->execute()) {
+          $actionMessage = "<div class='success'>User '$username' successfully registered!</div>";
+        } else {
+          $actionMessage = "<div class='error'>Error registering user: " . $stmt->error . "</div>";
+        }
+        $stmt->close();
+      }
+    } elseif (isset($_POST['login'])) {
+      // Login logic
+      $username = trim($_POST['username']);
+      $password = trim($_POST['password']);
+
+      if (empty($username) || empty($password)) {
+        $actionMessage = "<div class='error'>Both fields are required!</div>";
+      } else {
+        $stmt = $conn->prepare("SELECT username, password, role FROM users WHERE username = ?");
+        $stmt->bind_param("s", $username);
+        $stmt->execute();
+        $result = $stmt->get_result();
+
+        if ($result && $result->num_rows > 0) {
+          $user = $result->fetch_assoc();
+          if (password_verify($password, $user['password'])) {
+            $role = $user['role'];
+            if ($role === 'admin') {
+              $actionMessage = "<div class='success'>Welcome Admin! You have full access.</div>";
+            } else {
+              $actionMessage = "<div class='success'>Welcome $username! You are logged in as a user.</div>";
+            }
+          } else {
+            $actionMessage = "<div class='error'>Invalid credentials!</div>";
+          }
+        } else {
+          $actionMessage = "<div class='error'>Invalid credentials!</div>";
+        }
+        $stmt->close();
+      }
+    }
+  }
+  ?>
 
   <div class="container">
     <!-- Connection Status -->
