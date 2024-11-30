@@ -8,13 +8,11 @@ if (!$conn) {
 
 // Handle user registration
 if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['register'])) {
-    // Get and clean the input data for registration
     $username = trim($_POST['username']);
     $password = trim($_POST['password']);
     $mail = trim($_POST['mail']);
-    $role = isset($_POST['role']) ? trim($_POST['role']) : 'user'; // Default to 'user' role
+    $role = isset($_POST['role']) ? trim($_POST['role']) : 'user'; // Default role is 'user'
 
-    // Validate inputs
     if (empty($username) || empty($password) || empty($mail)) {
         die("Vsa obvezna polja (username, password, mail) morajo biti izpolnjena!");
     }
@@ -23,7 +21,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['register'])) {
         die("Neveljaven format e-poštnega naslova!");
     }
 
-    // Prepare and execute SQL query to insert user
     $stmt = $conn->prepare("INSERT INTO users (username, password, mail, role) VALUES (?, ?, ?, ?)");
     $stmt->bind_param("ssss", $username, $password, $mail, $role);
 
@@ -42,56 +39,112 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['register'])) {
 
 // Handle user login and dashboard
 if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['login'])) {
-    // Get username and password for login
     $username = trim($_POST['username']);
     $password = trim($_POST['password']);
 
-    // Validate inputs
     if (empty($username) || empty($password)) {
         die("Vsa obvezna polja morajo biti izpolnjena!");
     }
 
-    // Check if user exists and get their role
-    $stmt = $conn->prepare("SELECT role FROM users WHERE username = ? AND password = ?");
+    $stmt = $conn->prepare("SELECT id, role FROM users WHERE username = ? AND password = ?");
     $stmt->bind_param("ss", $username, $password);
     $stmt->execute();
     $result = $stmt->get_result();
 
     if ($result && $result->num_rows > 0) {
-        // Fetch the role
         $row = $result->fetch_assoc();
         $role = $row['role'];
+        $user_id = $row['id'];
 
-        // Display the dashboard based on role
-        if ($role == 'admin') {
+        if ($role == 'super_admin') {
+            echo "<h1>Welcome Super Admin</h1>";
+            echo "<h2>Manage Users:</h2>";
+
+            // Fetch all users
+            $users_result = $conn->query("SELECT id, username, mail, role FROM users");
+
+            while ($user = $users_result->fetch_assoc()) {
+                echo "<p>
+                        User: {$user['username']} - Email: {$user['mail']} - Role: {$user['role']}
+                        <br>
+                        <form method='POST'>
+                            <input type='hidden' name='user_id' value='{$user['id']}'>
+                            <input type='text' name='new_mail' placeholder='New Email' value='{$user['mail']}'>
+                            <select name='new_role'>
+                                <option value='user' " . ($user['role'] == 'user' ? 'selected' : '') . ">User</option>
+                                <option value='admin' " . ($user['role'] == 'admin' ? 'selected' : '') . ">Admin</option>
+                                <option value='super_admin' " . ($user['role'] == 'super_admin' ? 'selected' : '') . ">Super Admin</option>
+                            </select>
+                            <button type='submit' name='update_user'>Update</button>
+                            <button type='submit' name='delete_user' onclick=\"return confirm('Are you sure you want to delete this user?');\">Delete</button>
+                        </form>
+                      </p>";
+            }
+        } elseif ($role == 'admin') {
             echo "<h1>Welcome Admin</h1>";
             echo "<h2>All Users:</h2>";
 
-            // Fetch all users for admin
-            $users_sql = "SELECT username, mail FROM users";
-            $users_result = $conn->query($users_sql);
+            $users_result = $conn->query("SELECT username, mail FROM users");
 
             while ($user = $users_result->fetch_assoc()) {
-                echo "<p>User: " . $user['username'] . " - Email: " . $user['mail'] . "</p>";
+                echo "<p>User: {$user['username']} - Email: {$user['mail']}</p>";
             }
         } else {
             echo "<h1>Welcome $username</h1>";
             echo "<h2>Your Information:</h2>";
 
-            // Fetch user data for regular user
-            $stmt = $conn->prepare("SELECT username, mail FROM users WHERE username = ?");
-            $stmt->bind_param("s", $username);
+            $stmt = $conn->prepare("SELECT username, mail FROM users WHERE id = ?");
+            $stmt->bind_param("i", $user_id);
             $stmt->execute();
             $user_info_result = $stmt->get_result();
-
             $user_info = $user_info_result->fetch_assoc();
-            echo "<p>Username: " . $user_info['username'] . " - Email: " . $user_info['mail'] . "</p>";
+
+            echo "<p>Username: {$user_info['username']} - Email: {$user_info['mail']}</p>";
         }
     } else {
         echo "Invalid credentials!";
     }
 
     $stmt->close();
+}
+
+// Handle user updates and deletions
+if ($_SERVER["REQUEST_METHOD"] === "POST" && (isset($_POST['update_user']) || isset($_POST['delete_user']))) {
+    if (isset($_POST['update_user'])) {
+        $user_id = $_POST['user_id'];
+        $new_mail = trim($_POST['new_mail']);
+        $new_role = $_POST['new_role'];
+
+        if (!filter_var($new_mail, FILTER_VALIDATE_EMAIL)) {
+            die("Neveljaven format e-poštnega naslova!");
+        }
+
+        $stmt = $conn->prepare("UPDATE users SET mail = ?, role = ? WHERE id = ?");
+        $stmt->bind_param("ssi", $new_mail, $new_role, $user_id);
+
+        if ($stmt->execute()) {
+            echo "User updated successfully!";
+        } else {
+            echo "Error updating user: " . $stmt->error;
+        }
+
+        $stmt->close();
+    }
+
+    if (isset($_POST['delete_user'])) {
+        $user_id = $_POST['user_id'];
+
+        $stmt = $conn->prepare("DELETE FROM users WHERE id = ?");
+        $stmt->bind_param("i", $user_id);
+
+        if ($stmt->execute()) {
+            echo "User deleted successfully!";
+        } else {
+            echo "Error deleting user: " . $stmt->error;
+        }
+
+        $stmt->close();
+    }
 }
 
 // Close the connection
